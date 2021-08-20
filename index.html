@@ -1,0 +1,195 @@
+<html>
+    <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300&display=swap" rel="stylesheet">
+
+        <style>
+            * {
+                font-family: 'IBM Plex Sans', sans-serif;
+            }
+
+            .calendar-wrapper {
+                max-width: 280px;
+                font: 100% system-ui;
+            }
+
+            .grid {
+                display: grid;
+                grid-template-columns: repeat(7, 1fr);
+            }
+
+            .day-name {
+                background: #eee;
+                width: 9vw;
+                height: 25px;
+                line-height: 25px;
+                text-align: center;
+            }
+
+            h2 {
+                text-align: center;
+            }
+
+            .calendar > div {
+                width: 9vw;
+                height: 130px;
+                position: relative;
+                text-align: center;
+            }
+
+            .marker {
+                height: 8px;
+                width: 8px;
+                position: absolute;
+                border-radius: 2px;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="cal" style="display: flex;">
+            <div style="width: 63%;">
+                <h2><span :onclick="subMonth">&laquo;</span>&#09;&#09;&#09; {{ firstDate.monthLong }} {{ firstDate.year }} &#09;&#09;&#09;<span :onclick="plusMonth">&raquo;</span></h2>
+                <div class="grid">
+                    <div class="day-name">Sun</div>
+                    <div class="day-name">Mon</div>
+                    <div class="day-name">Tue</div>
+                    <div class="day-name">Wed</div>
+                    <div class="day-name">Thu</div>
+                    <div class="day-name">Fri</div>
+                    <div class="day-name">Sat</div>
+                </div>
+                <div class="grid calendar">
+                    <div id="date-1" v-on:click="selected = dateKey(1)" :style="'grid-column-start: ' + firstDayOffset + '; background-color: ' + worstMoodMap[dateKey(1)]">
+                        <div style="margin-top: 4px;">1</div>
+                        <div v-for="marker in moodMap[dateKey(1)]" class="marker" :style="'left: ' + marker.left + '%; background-color: ' + marker.color + '; top: ' + marker.top + '%;'"></div>
+                     </div>
+                    <div v-for="n in dayNums" v-on:click="selected = dateKey(n)"  :id="'date-' + n" :style="'background-color: ' + worstMoodMap[dateKey(n)]">
+                        <div style="margin-top: 4px;">{{ n }}</div>
+                        <div v-for="marker in moodMap[dateKey(n)]" class="marker" :style="'left: ' + marker.left + '%; background-color: ' + marker.color + '; top: ' + marker.top + '%;'"></div>
+                    </div>
+                </div>
+            </div>
+            <div style="margin-left: 50px; margin-top: 20px; margin-right: 40px;">
+                <h3>{{ selected }}</h3>
+                <div v-for="entry in moodMap[selected]">
+                    <div v-if="entry['notes']">
+                        <h4>{{ entry['time'] }} - {{ numToName[entry['val']] }}</h4>
+                        <p>{{ entry["notes"] }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <script src="https://cdn.jsdelivr.net/npm/luxon@2.0.1/build/global/luxon.min.js"></script>
+        <script src="https://unpkg.com/vue@3.1.5/dist/vue.global.js"></script>
+        <script>
+            if (document.readyState != "loading") {
+                ready();
+            } else {
+                document.addEventListener("DOMContentLoaded", ready);
+            }
+
+            // TODO: merge these three objects
+            const numToColor = {
+                1: "#FF0000", // Awful
+                2: "#fa4e4e", // Bad
+                3: "#E9984C", // Not Good 
+                4: "#DBD07C", // Okay
+                5: "#B1C781", // Good
+                6: "#8FBF87", // Very Good
+                7: "#71B98E", // Great
+                8: "#ffffff"  // No Data 
+            };
+
+            const numToPercent = {
+                1: 80,
+                2: 70,
+                3: 60,
+                4: 50,
+                5: 40,
+                6: 30,
+                7: 20
+            };
+
+            const numToName = {
+                1: "Awful",
+                2: "Bad",
+                3: "Not Good",
+                4: "Okay",
+                5: "Good",
+                6: "Very Good",
+                7: "Great"
+            };
+
+            const SECONDS_IN_DAY = 86400;
+            let app;
+
+            async function ready() {
+                const data = (await (await fetch("./data.json")).json())["dailyHabitData"]["data"];
+                let moodMap = {};
+                
+                for (let date in data) {
+                    if (!data[date]["Mood"]) continue;
+                    for (let event of data[date]["Mood"]) {
+                        let time = luxon.DateTime.fromMillis(event["experiencedAt"]);
+
+                        if (!moodMap[time.toISODate()]) moodMap[time.toISODate()] = [];
+                        moodMap[time.toISODate()].push({
+                            val: event["valueInt"],
+                            color: numToColor[event["valueInt"]],
+                            left: ((time.toSeconds() - time.startOf("day").toSeconds()) / SECONDS_IN_DAY * 100) - 3,
+                            top: numToPercent[event["valueInt"]],
+                            time: time.toLocaleString(luxon.DateTime.TIME_SIMPLE),
+                            notes: event["habitDataNotes"] ? event["habitDataNotes"]["notes"] : null
+                        });
+                    }
+                }
+
+                let worstMoodMap = {};
+
+                for (let date in moodMap) {
+                    let val = 8;
+                    for (let mood of moodMap[date]) {
+                        if (mood.val < val) val = mood.val;
+                    }
+                    
+                    worstMoodMap[date] = numToColor[val] + "40";
+                }
+
+                app = Vue.createApp({
+                    data() {
+                        return {
+                            firstDate: luxon.DateTime.now().startOf("month"),
+                            selected: null,
+                            worstMoodMap,
+                            moodMap,
+                            numToName
+                        };
+                    },
+                    computed: {
+                        firstDayOffset() {
+                            return (this.firstDate.weekday + 1) % 7;
+                        },
+                        daysInMonth() {
+                            return this.firstDate.daysInMonth;
+                        },
+                        dayNums() {
+                            return [...Array(this.daysInMonth + 1).keys()].slice(2)
+                        }
+                    },
+                    methods: {
+                        dateKey(offset) {
+                            return this.firstDate.plus({"days": offset - 1}).toISODate();
+                        },
+                        subMonth() {
+                            this.firstDate = this.firstDate.minus({months: 1});
+                        },
+                        plusMonth() {
+                            this.firstDate = this.firstDate.plus({months: 1});
+                        },
+                    }
+                }).mount('#cal');
+            }
+        </script>
+    </body>
+</html>
