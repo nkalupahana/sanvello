@@ -47,7 +47,7 @@
         </style>
     </head>
     <body>
-        <div id="cal" style="display: flex;">
+        <div id="cal" style="display: flex; height: 100vh; width: 100vw;">
             <div style="width: 63%;">
                 <h2><span :onclick="subMonth">&laquo;</span>&#09;&#09;&#09; {{ firstDate.monthLong }} {{ firstDate.year }} &#09;&#09;&#09;<span :onclick="plusMonth">&raquo;</span></h2>
                 <div class="grid">
@@ -70,9 +70,9 @@
                     </div>
                 </div>
             </div>
-            <div style="margin-left: 50px; margin-top: 20px; margin-right: 40px;">
+            <div style="margin-left: 50px; margin-top: 20px; margin-right: 40px; overflow-y: scroll;">
                 <h3>{{ selected }}</h3>
-                <div v-for="entry in moodMap[selected]">
+                <div v-for="entry in orderDay(moodMap[selected])">
                     <div v-if="entry['notes']">
                         <h4>{{ entry['time'] }} - {{ numToName[entry['val']] }}</h4>
                         <p>{{ entry["notes"] }}</p>
@@ -140,6 +140,7 @@
                             left: ((time.toSeconds() - time.startOf("day").toSeconds()) / SECONDS_IN_DAY * 100) - 3,
                             top: numToPercent[event["valueInt"]],
                             time: time.toLocaleString(luxon.DateTime.TIME_SIMPLE),
+                            timestamp: time.toSeconds(),
                             notes: event["habitDataNotes"] ? event["habitDataNotes"]["notes"] : null
                         });
                     }
@@ -187,6 +188,10 @@
                         plusMonth() {
                             this.firstDate = this.firstDate.plus({months: 1});
                         },
+                        orderDay(arr) {
+                            if (arr == undefined) return [];
+                            return arr.sort((x,y) => x.timestamp - y.timestamp);
+                        }
                     }
                 }).mount('#cal');
             }
